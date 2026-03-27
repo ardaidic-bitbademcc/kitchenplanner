@@ -100,7 +100,7 @@ export default function BaseProductsPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2 justify-end">
                           <Button size="sm" variant="secondary" onClick={() => openEdit(item)}>Düzenle</Button>
-                          <Button size="sm" variant="ghost" asChild><Link href={`/base-products/${item.id}`}>İçerik</Link></Button>
+                          <Link href={`/base-products/${item.id}`}><Button size="sm" variant="ghost">İçerik</Button></Link>
                           <Button size="sm" variant="danger" onClick={() => setDeleteId(item.id)}>Sil</Button>
                         </div>
                       </td>

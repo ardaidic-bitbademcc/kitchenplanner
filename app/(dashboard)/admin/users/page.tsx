@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
 interface User { id: string; email: string; name: string; role: "admin" | "viewer"; createdAt: string; }
-const empty = { email: "", name: "", password: "", role: "viewer" as const };
+const empty: { email: string; name: string; password: string; role: "admin" | "viewer" } = { email: "", name: "", password: "", role: "viewer" };
 
 export default function UsersPage() {
   const { data: session } = useSession();
@@ -65,7 +65,7 @@ export default function UsersPage() {
                   <td className="px-4 py-3 text-brown-600">{u.email}</td>
                   <td className="px-4 py-3"><Badge color={u.role === "admin" ? "blue" : "gray"}>{u.role}</Badge></td>
                   <td className="px-4 py-3">
-                    <Button size="sm" variant="secondary" onClick={() => { setEditUser(u); setForm({ email: u.email, name: u.name, password: "", role: u.role }); setModalOpen(true); }}>Düzenle</Button>
+                    <Button size="sm" variant="secondary" onClick={() => { setEditUser(u); setForm({ email: u.email, name: u.name, password: "", role: u.role as "admin" | "viewer" }); setModalOpen(true); }}>Düzenle</Button>
                   </td>
                 </tr>
               ))}
