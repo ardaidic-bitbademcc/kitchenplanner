@@ -28,6 +28,7 @@ export function Navbar({ role, name }: Props) {
               <NavLink href="/products" active={isActive("/products")}>Ürünler</NavLink>
               <NavLink href="/base-products" active={isActive("/base-products")}>Baz Ürünler</NavLink>
               <NavLink href="/raw-materials" active={isActive("/raw-materials")}>Hammaddeler</NavLink>
+              <NavLink href="/sales-history" active={isActive("/sales-history")}>Satış Geçmişi</NavLink>
               <NavLink href="/admin/users" active={isActive("/admin/users")}>Kullanıcılar</NavLink>
             </>
           )}

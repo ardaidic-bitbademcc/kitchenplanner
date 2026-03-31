@@ -110,3 +110,12 @@ export const scheduleTasks = pgTable("schedule_tasks", {
   status: taskStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const salesHistory = pgTable("sales_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  weekStart: date("week_start").notNull(),
+  soldQty: integer("sold_qty").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
