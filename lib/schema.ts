@@ -130,3 +130,16 @@ export const baseProductSubProducts = pgTable("base_product_sub_products", {
   qtyPerBatch: numeric("qty_per_batch", { precision: 10, scale: 4 }).notNull(),
   unit: text("unit").notNull(),
 });
+
+export const stockMovementTypeEnum = pgEnum("stock_movement_type", ["usage", "restock", "adjustment"]);
+
+export const stockMovements = pgTable("stock_movements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  rawMaterialId: uuid("raw_material_id").notNull().references(() => rawMaterials.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => scheduleTasks.id, { onDelete: "set null" }),
+  type: stockMovementTypeEnum("type").notNull(),
+  qtyChange: numeric("qty_change", { precision: 10, scale: 4 }).notNull(), // negative=usage, positive=restock
+  unit: text("unit").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
