@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ExcelImport } from "@/components/ui/ExcelImport";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -70,7 +71,12 @@ export default function BaseProductsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-brown-800">Baz Ürünler</h1>
-        {isAdmin && <Button onClick={() => { setEditItem(null); setForm(empty); setModalOpen(true); }}>+ Ekle</Button>}
+        {isAdmin && (
+          <div className="flex gap-2">
+            <ExcelImport type="base-products" onSuccess={load} />
+            <Button onClick={() => { setEditItem(null); setForm(empty); setModalOpen(true); }}>+ Ekle</Button>
+          </div>
+        )}
       </div>
       {loading ? <SkeletonTable /> : (
         <div className="bg-white rounded-xl border border-cream-200 overflow-hidden">

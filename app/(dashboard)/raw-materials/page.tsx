@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Badge } from "@/components/ui/Badge";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ExcelImport } from "@/components/ui/ExcelImport";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 
@@ -83,7 +84,12 @@ export default function RawMaterialsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-brown-800">Hammaddeler</h1>
-        {isAdmin && <Button onClick={openCreate}>+ Ekle</Button>}
+        {isAdmin && (
+          <div className="flex gap-2">
+            <ExcelImport type="raw-materials" onSuccess={load} />
+            <Button onClick={openCreate}>+ Ekle</Button>
+          </div>
+        )}
       </div>
 
       {loading ? <SkeletonTable /> : (
