@@ -89,6 +89,10 @@ export async function POST(req: NextRequest) {
         product: p?.name,
         weekStart: s.weekStart,
         soldQty: s.soldQty,
+        revenue: s.revenue ? parseFloat(s.revenue as string) : null,
+        channel: s.channel,
+        eventType: s.eventType,
+        notes: s.notes,
       };
     }),
     recentPlanItems: recentPlanItems.map((i) => {

@@ -5,10 +5,16 @@ import { salesHistory, products } from "@/lib/schema";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
+const VALID_CHANNELS = ["mağaza", "online", "catering", "karma"];
+const VALID_EVENT_TYPES = ["normal", "resmi_tatil", "özel_gün", "kampanya", "mevsim"];
+
 const schema = z.object({
   productId: z.string().uuid(),
   weekStart: z.string(),
   soldQty: z.number().int().min(0),
+  revenue: z.string().nullable().optional(),
+  channel: z.enum(["mağaza", "online", "catering", "karma"]).default("mağaza"),
+  eventType: z.enum(["normal", "resmi_tatil", "özel_gün", "kampanya", "mevsim"]).default("normal"),
   notes: z.string().optional(),
 });
 
@@ -22,6 +28,9 @@ export async function GET() {
       productName: products.name,
       weekStart: salesHistory.weekStart,
       soldQty: salesHistory.soldQty,
+      revenue: salesHistory.revenue,
+      channel: salesHistory.channel,
+      eventType: salesHistory.eventType,
       notes: salesHistory.notes,
       createdAt: salesHistory.createdAt,
     })
@@ -37,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   const body = await req.json();
   const parsed = schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Geçersiz veri" }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Geçersiz veri", details: parsed.error.flatten() }, { status: 400 });
   const [item] = await db.insert(salesHistory).values(parsed.data).returning();
   return NextResponse.json(item, { status: 201 });
 }

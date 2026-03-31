@@ -116,6 +116,17 @@ export const salesHistory = pgTable("sales_history", {
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   weekStart: date("week_start").notNull(),
   soldQty: integer("sold_qty").notNull(),
+  revenue: numeric("revenue", { precision: 10, scale: 2 }),
+  channel: text("channel").notNull().default("mağaza"),
+  eventType: text("event_type").notNull().default("normal"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const baseProductSubProducts = pgTable("base_product_sub_products", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  baseProductId: uuid("base_product_id").notNull().references(() => baseProducts.id, { onDelete: "cascade" }),
+  subBaseProductId: uuid("sub_base_product_id").notNull().references(() => baseProducts.id),
+  qtyPerBatch: numeric("qty_per_batch", { precision: 10, scale: 4 }).notNull(),
+  unit: text("unit").notNull(),
 });
