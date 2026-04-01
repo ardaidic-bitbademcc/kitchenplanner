@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -44,6 +44,11 @@ export default function RawMaterialsPage() {
   const [movementsItem, setMovementsItem] = useState<RawMaterial | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
+
+  // Excel import
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ inserted: number; insertedNames: string[]; skipped: string[] } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -100,6 +105,34 @@ export default function RawMaterialsPage() {
     else { const e = await res.json(); toast.error(e.error || "Hata"); }
   }
 
+  async function handleDownloadTemplate() {
+    const res = await fetch("/api/raw-materials/template");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "hammadde-sablonu.xlsx"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true); setImportResult(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/raw-materials/bulk", { method: "POST", body: fd });
+    const result = await res.json();
+    setImporting(false);
+    if (res.ok) {
+      toast.success(`${result.inserted} hammadde eklendi`);
+      setImportResult(result);
+      load();
+    } else {
+      toast.error(result.error || "Yükleme hatası");
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function openMovements(item: RawMaterial) {
     setMovementsItem(item);
     setMovementsLoading(true);
@@ -113,10 +146,34 @@ export default function RawMaterialsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-brown-800">Hammaddeler</h1>
-        {isAdmin && <Button onClick={openCreate}>+ Ekle</Button>}
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="secondary" size="sm" onClick={handleDownloadTemplate}>⬇ Şablon İndir</Button>
+          <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+            {importing ? "Yükleniyor..." : "⬆ Excel Yükle"}
+          </Button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileUpload} />
+          {isAdmin && <Button onClick={openCreate}>+ Ekle</Button>}
+        </div>
       </div>
+
+      {importResult && (
+        <div className={`mb-4 rounded-xl border p-4 text-sm ${importResult.skipped.length > 0 ? "bg-yellow-50 border-yellow-200" : "bg-green-50 border-green-200"}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold text-green-800">
+                ✅ {importResult.inserted} hammadde eklendi
+                {importResult.skipped.length > 0 && `, ${importResult.skipped.length} satır atlandı`}
+              </p>
+              {importResult.skipped.map((s, i) => (
+                <p key={i} className="text-yellow-700 text-xs mt-0.5">⚠ {s}</p>
+              ))}
+            </div>
+            <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-4">×</button>
+          </div>
+        </div>
+      )}
 
       {loading ? <SkeletonTable /> : (
         <div className="bg-white rounded-xl border border-cream-200 overflow-hidden">
