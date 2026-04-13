@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { products } from "@/lib/schema";
@@ -15,7 +15,7 @@ export async function GET() {
   // === Sheet 1: Veri Girişi ===
   const headers = [
     "Ürün Adı *",
-    "Hafta Başı * (YYYY-AA-GG)",
+    "Haftanın Pazartesi Tarihi * (GG.AA.YYYY)",
     "Satılan Adet *",
     "Gelir (₺)",
     "Kanal *",
@@ -25,7 +25,7 @@ export async function GET() {
 
   const example = [
     allProducts[0]?.name || "Ekler",
-    "2026-03-31",
+    "31.03.2026",
     "120",
     "10200",
     "mağaza",
@@ -36,9 +36,15 @@ export async function GET() {
   const wsData = [headers, example];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Column widths
+  // B2 hücresini metin (text) olarak işaretle — Excel'in otomatik tarih
+  // dönüşümünü engellemek için. Kullanıcı da GG.AA.YYYY formatında girecek.
+  if (ws["B2"]) {
+    ws["B2"].t = "s"; // string type
+    ws["B2"].z = "@"; // text number format code
+  }
+
   ws["!cols"] = [
-    { wch: 25 }, { wch: 22 }, { wch: 15 }, { wch: 12 },
+    { wch: 25 }, { wch: 35 }, { wch: 15 }, { wch: 12 },
     { wch: 15 }, { wch: 18 }, { wch: 30 },
   ];
 
@@ -64,6 +70,35 @@ export async function GET() {
   const refSheet = XLSX.utils.aoa_to_sheet(refData);
   refSheet["!cols"] = [{ wch: 20 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, refSheet, "Geçerli Değerler");
+
+  // === Sheet 4: Nasıl Doldurulur ===
+  const helpData = [
+    ["SATIŞ GEÇMİŞİ ŞABLONU — DOLDURMA REHBERİ"],
+    [""],
+    ["KOLON", "AÇIKLAMA", "ÖRNEK"],
+    ["Ürün Adı *", '"Ürünler (Referans)" sayfasındaki adlardan birini girin', "Ekler"],
+    [
+      "Haftanın Pazartesi Tarihi *",
+      "O satış haftasının PAZARTESİ günü — GG.AA.YYYY formatında metin olarak girin.\n"
+      + "YZ bu tarihi kullanarak bir sonraki hafta için üretim tahmini üretir.\n"
+      + "Örnek: 28 Nisan – 2 Mayıs haftası için → 28.04.2026",
+      "28.04.2026",
+    ],
+    ["Satılan Adet *", "O haftada satılan toplam ürün adedi (tam sayı)", "120"],
+    ["Gelir (₺)", "O haftaki toplam satış geliri (opsiyonel)", "10200"],
+    ["Kanal *", '"Geçerli Değerler" sayfasına bakın', "mağaza"],
+    ["Olay Tipi *", '"Geçerli Değerler" sayfasına bakın', "normal"],
+    ["Not", "Ek açıklama (opsiyonel)", "Ramazan etkisi"],
+    [""],
+    ["ÖNEMLİ: Tarih Kolonunu Doğru Doldurun"],
+    ["• GG.AA.YYYY formatında metin olarak girin: 31.03.2026"],
+    ["• Excel otomatik dönüştürürse: hücreye sağ tıklayın → Hücreleri Biçimlendir → Metin seçin"],
+    ["• Tarih hep o haftanın PAZARTESİ günü olmalıdır"],
+  ];
+  const helpSheet = XLSX.utils.aoa_to_sheet(helpData);
+  helpSheet["!cols"] = [{ wch: 35 }, { wch: 70 }, { wch: 20 }];
+  helpSheet["!rows"] = [{ hpt: 20 }, {}, { hpt: 18 }];
+  XLSX.utils.book_append_sheet(wb, helpSheet, "Nasıl Doldurulur");
 
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
