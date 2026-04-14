@@ -1,39 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
-// Sistemdeki tüm geçerli birimler — her iki şablonda aynı liste kullanılır
 const UNITS = ["kg", "gr", "litre", "dl", "cl", "ml", "adet"];
+const UNITS_FORMULA = `"${UNITS.join(",")}"`;  // "kg,gr,litre,dl,cl,ml,adet"
 
-const TEMPLATES: Record<string, { headers: string[]; example: (string | number)[][] }> = {
-  "raw-materials": {
-    headers: ["Ad *", "Birim *", "Birim Fiyat (₺) *", "Mevcut Stok", "Min Stok", "Raf Ömrü (saat)"],
-    example: [
-      ["Süt", "litre", 25, 50, 10, 72],
-      ["Yumurta", "adet", 7, 200, 50, ""],
-      ["Tereyağı", "kg", 450, 20, 5, ""],
-    ],
-  },
-  "base-products": {
-    headers: ["Ad *", "Birim *", "Parti Çıktısı *", "Fire Oranı (0-1) *", "Raf Ömrü (saat) *", "Notlar"],
-    example: [
-      ["Fransız Kreması", "kg", 1, 0.1, 48, "SKT: 48 saat"],
-      ["Pasta Taban", "adet", 10, 0.05, 24, ""],
-    ],
-  },
-  "products": {
-    headers: ["Ad *", "Açıklama", "Satış Fiyatı (₺)"],
-    example: [
-      ["Ekler", "Fransız kremalı ekler pasta", 85],
-      ["Profiterol", "Çikolata soslu profiterol", 65],
-    ],
-  },
+type TemplateConfig = {
+  headers: { header: string; key: string; width: number }[];
+  example: Record<string, string | number>[];
+  unitColumn?: string; // hangi kolon dropdown alacak, örn: "B"
 };
 
-// Birim dropdown'ı olan şablon tipleri ve hangi kolon (0-indexed)
-const UNIT_COLUMN: Record<string, string> = {
-  "raw-materials": "B",
-  "base-products": "B",
+const TEMPLATES: Record<string, TemplateConfig> = {
+  "raw-materials": {
+    headers: [
+      { header: "Ad *",               key: "ad",      width: 28 },
+      { header: "Birim *",            key: "birim",   width: 18 },
+      { header: "Birim Fiyat (₺) *", key: "fiyat",   width: 20 },
+      { header: "Mevcut Stok",        key: "stok",    width: 15 },
+      { header: "Min Stok",           key: "minStok", width: 15 },
+      { header: "Raf Ömrü (saat)",    key: "raf",     width: 18 },
+    ],
+    example: [
+      { ad: "Süt",      birim: "litre", fiyat: 25,  stok: 50,  minStok: 10, raf: 72 },
+      { ad: "Yumurta",  birim: "adet",  fiyat: 7,   stok: 200, minStok: 50, raf: "" },
+      { ad: "Tereyağı", birim: "kg",    fiyat: 450, stok: 20,  minStok: 5,  raf: "" },
+    ],
+    unitColumn: "B",
+  },
+  "base-products": {
+    headers: [
+      { header: "Ad *",                key: "ad",     width: 28 },
+      { header: "Birim *",             key: "birim",  width: 18 },
+      { header: "Parti Çıktısı *",     key: "parti",  width: 18 },
+      { header: "Fire Oranı (0-1) *",  key: "fire",   width: 20 },
+      { header: "Raf Ömrü (saat) *",   key: "raf",    width: 20 },
+      { header: "Notlar",              key: "notlar", width: 35 },
+    ],
+    example: [
+      { ad: "Fransız Kreması", birim: "kg",   parti: 1,  fire: 0.1,  raf: 48, notlar: "SKT: 48 saat" },
+      { ad: "Pasta Taban",     birim: "adet", parti: 10, fire: 0.05, raf: 24, notlar: "" },
+    ],
+    unitColumn: "B",
+  },
+  "products": {
+    headers: [
+      { header: "Ad *",           key: "ad",      width: 28 },
+      { header: "Açıklama",       key: "aciklama", width: 40 },
+      { header: "Satış Fiyatı (₺)", key: "fiyat", width: 20 },
+    ],
+    example: [
+      { ad: "Ekler",      aciklama: "Fransız kremalı ekler pasta", fiyat: 85 },
+      { ad: "Profiterol", aciklama: "Çikolata soslu profiterol",   fiyat: 65 },
+    ],
+  },
 };
 
 export async function GET(req: NextRequest, { params }: { params: { type: string } }) {
@@ -43,83 +63,98 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
   const template = TEMPLATES[params.type];
   if (!template) return NextResponse.json({ error: "Geçersiz şablon tipi" }, { status: 400 });
 
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "KitchenPlanner";
+  wb.created = new Date();
 
-  // === Sheet 1: Veri Girişi ===
-  const dataRows = [template.headers, ...template.example];
-  const ws = XLSX.utils.aoa_to_sheet(dataRows);
+  // ── Sheet 1: Veri ──────────────────────────────────────────────────────────
+  const ws = wb.addWorksheet("Veri", {
+    views: [{ state: "frozen", ySplit: 1 }], // başlık satırını dondur
+  });
 
-  ws["!cols"] = template.headers.map(() => ({ wch: 25 }));
-  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws.columns = template.headers;
 
-  // Birim kolonu için dropdown (veri doğrulama) ekle
-  if (UNIT_COLUMN[params.type]) {
-    const col = UNIT_COLUMN[params.type];
-    const unitList = UNITS.join(","); // "kg,gr,litre,dl,cl,ml,adet"
+  // Başlık satırı stili
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9C4A3" } };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.height = 20;
 
-    (ws as any)["!dataValidations"] = [
-      {
+  // Örnek satırlar
+  template.example.forEach((row) => ws.addRow(row));
+
+  // ── Birim Dropdown (Veri Doğrulama) ───────────────────────────────────────
+  if (template.unitColumn) {
+    const col = template.unitColumn;
+    for (let rowNum = 2; rowNum <= 1000; rowNum++) {
+      ws.getCell(`${col}${rowNum}`).dataValidation = {
         type: "list",
-        sqref: `${col}2:${col}1000`,   // 2. satırdan 1000. satıra kadar tüm veri satırları
-        formula1: `"${unitList}"`,      // Excel inline liste — tırnak içinde, virgülle ayrılmış
-        showDropDown: false,            // false = dropdown oku göster (Excel'in ters mantığı)
+        allowBlank: false,
+        formulae: [UNITS_FORMULA],
         showErrorMessage: true,
-        errorStyle: "stop",             // stop = geçersiz değer girilince kaydetme
+        errorStyle: "error",
         errorTitle: "Geçersiz Birim",
-        error: `Lütfen listeden bir birim seçin: ${UNITS.join(", ")}`,
+        error: `Lütfen listeden seçin: ${UNITS.join(", ")}`,
         showInputMessage: true,
         promptTitle: "Birim Seçin",
-        prompt: `Geçerli birimler: ${UNITS.join(", ")}`,
-      },
-    ];
+        prompt: `Geçerli birimler:\n${UNITS.join(", ")}`,
+      };
+    }
   }
 
-  XLSX.utils.book_append_sheet(wb, ws, "Veri");
-
-  // === Sheet 2: Birimler Referans (görünür yardımcı sayfa) ===
-  if (UNIT_COLUMN[params.type]) {
-    const unitRefData = [
-      ["Geçerli Birimler", "Açıklama"],
-      ["kg", "Kilogram"],
-      ["gr", "Gram"],
+  // ── Sheet 2: Birimler Referans ─────────────────────────────────────────────
+  if (template.unitColumn) {
+    const wsRef = wb.addWorksheet("Birimler (Referans)");
+    wsRef.columns = [
+      { header: "Birim", key: "birim", width: 12 },
+      { header: "Açıklama", key: "aciklama", width: 22 },
+    ];
+    wsRef.getRow(1).font = { bold: true };
+    const unitDescs: [string, string][] = [
+      ["kg",    "Kilogram"],
+      ["gr",    "Gram"],
       ["litre", "Litre"],
-      ["dl", "Desilitre"],
-      ["cl", "Santilitre"],
-      ["ml", "Mililitre"],
-      ["adet", "Adet (sayı)"],
+      ["dl",    "Desilitre"],
+      ["cl",    "Santilitre"],
+      ["ml",    "Mililitre"],
+      ["adet",  "Adet (sayı)"],
     ];
-    const wsRef = XLSX.utils.aoa_to_sheet(unitRefData);
-    wsRef["!cols"] = [{ wch: 12 }, { wch: 20 }];
-    XLSX.utils.book_append_sheet(wb, wsRef, "Birimler (Referans)");
+    unitDescs.forEach(([b, a]) => wsRef.addRow({ birim: b, aciklama: a }));
   }
 
-  // === Sheet 3: Talimatlar ===
-  const instructionRows = [
-    ["KULLANIM TALİMATLARI"],
-    [""],
-    ["1. 'Veri' sekmesindeki örnek satırları silin"],
-    ["2. Kendi verilerinizi girin"],
-    ["3. * ile işaretli alanlar zorunludur"],
-    ["4. Birim kolonunda hücreye tıklayın — sağında çıkan oka basarak seçim yapın"],
-    ["5. Dosyayı kaydedin (.xlsx formatında)"],
-    ["6. Uygulamada 'Excel İçe Aktar' butonuna basın ve dosyayı yükleyin"],
-    [""],
-    ["ALAN AÇIKLAMALARI:"],
-    ...Object.entries(getFieldDescriptions(params.type)).map(([k, v]) => [`  ${k}:`, v]),
-  ];
-  const wsInst = XLSX.utils.aoa_to_sheet(instructionRows);
-  wsInst["!cols"] = [{ wch: 30 }, { wch: 55 }];
-  XLSX.utils.book_append_sheet(wb, wsInst, "Talimatlar");
+  // ── Sheet 3: Talimatlar ────────────────────────────────────────────────────
+  const wsTal = wb.addWorksheet("Talimatlar");
+  wsTal.columns = [{ key: "a", width: 38 }, { key: "b", width: 58 }];
 
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const instructions: [string, string][] = [
+    ["KULLANIM TALİMATLARI", ""],
+    ["", ""],
+    ["1. Örnek satırları silin", "'Veri' sekmesindeki gri satırlar örnek içindir"],
+    ["2. Verilerinizi girin", "* ile işaretli kolonlar zorunludur"],
+    ["3. Birim kolonunu kullanın", "Hücreye tıklayın → sağdaki oka basarak seçin"],
+    ["4. Kaydedin", ".xlsx formatında kaydedin"],
+    ["5. Yükleyin", "Uygulamada 'Excel İçe Aktar' butonunu kullanın"],
+    ["", ""],
+    ["ALAN AÇIKLAMALARI", ""],
+    ...getFieldDescriptions(params.type),
+  ];
+
+  instructions.forEach(([a, b], i) => {
+    const row = wsTal.addRow({ a, b });
+    if (i === 0 || i === 8) row.font = { bold: true };
+  });
+
+  // ── Buffer'a yaz ───────────────────────────────────────────────────────────
+  const buffer = await wb.xlsx.writeBuffer();
 
   const typeLabels: Record<string, string> = {
-    "raw-materials": "hammaddeler",
-    "base-products": "baz-urunler",
-    "products": "urunler",
+    "raw-materials":  "hammaddeler",
+    "base-products":  "baz-urunler",
+    "products":       "urunler",
   };
 
-  return new NextResponse(buf, {
+  return new NextResponse(Buffer.from(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="sablon-${typeLabels[params.type] || params.type}.xlsx"`,
@@ -127,33 +162,33 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
   });
 }
 
-function getFieldDescriptions(type: string): Record<string, string> {
+function getFieldDescriptions(type: string): [string, string][] {
   switch (type) {
     case "raw-materials":
-      return {
-        "Ad": "Hammadde adı (örn: Süt, Un, Tereyağı)",
-        "Birim": "Dropdown'dan seçin: kg, gr, litre, dl, cl, ml, adet",
-        "Birim Fiyat": "1 birim fiyatı TL cinsinden",
-        "Mevcut Stok": "Şu anki stok miktarı (varsayılan: 0)",
-        "Min Stok": "Minimum stok eşiği — altında uyarı verir",
-        "Raf Ömrü (saat)": "Opsiyonel — boş bırakılabilir",
-      };
+      return [
+        ["Ad",               "Hammadde adı — örn: Süt, Un, Tereyağı"],
+        ["Birim",            "Dropdown'dan seçin: kg, gr, litre, dl, cl, ml, adet"],
+        ["Birim Fiyat",      "1 birim fiyatı TL cinsinden"],
+        ["Mevcut Stok",      "Şu anki stok (opsiyonel, varsayılan: 0)"],
+        ["Min Stok",         "Bu eşiğin altına düşünce dashboard'da uyarı çıkar"],
+        ["Raf Ömrü (saat)",  "Opsiyonel — boş bırakılabilir"],
+      ];
     case "base-products":
-      return {
-        "Ad": "Baz ürün adı (örn: Fransız Kreması, Ganaj)",
-        "Birim": "Dropdown'dan seçin: kg, gr, litre, dl, cl, ml, adet",
-        "Parti Çıktısı": "1 parti üretimde elde edilen miktar",
-        "Fire Oranı": "0 ile 1 arasında (örn: 0.10 = %10 fire)",
-        "Raf Ömrü (saat)": "Kaç saat taze kalır (örn: 48)",
-        "Notlar": "Opsiyonel not",
-      };
+      return [
+        ["Ad",               "Baz ürün adı — örn: Fransız Kreması, Ganaj"],
+        ["Birim",            "Dropdown'dan seçin: kg, gr, litre, dl, cl, ml, adet"],
+        ["Parti Çıktısı",    "1 parti üretimde elde edilen miktar"],
+        ["Fire Oranı",       "0 ile 1 arasında — örn: 0.10 = %10 fire"],
+        ["Raf Ömrü (saat)",  "Kaç saat taze kalır — örn: 48"],
+        ["Notlar",           "Opsiyonel not"],
+      ];
     case "products":
-      return {
-        "Ad": "Son ürün adı (örn: Ekler, Profiterol)",
-        "Açıklama": "Opsiyonel kısa açıklama",
-        "Satış Fiyatı": "TL cinsinden satış fiyatı (opsiyonel)",
-      };
+      return [
+        ["Ad",           "Son ürün adı — örn: Ekler, Profiterol"],
+        ["Açıklama",     "Opsiyonel kısa açıklama"],
+        ["Satış Fiyatı", "TL cinsinden (opsiyonel)"],
+      ];
     default:
-      return {};
+      return [];
   }
 }
