@@ -1,44 +1,107 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+
+const UNITS = ["kg", "gr", "litre", "dl", "cl", "ml", "adet"];
+const UNITS_FORMULA = `"${UNITS.join(",")}"`;
 
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "KitchenPlanner";
+  wb.created = new Date();
 
-  // Sheet 1: Veri Girişi
-  const ws = XLSX.utils.aoa_to_sheet([
-    ["Ad *", "Birim *", "Birim Fiyat (₺) *", "Mevcut Stok", "Min Stok", "Raf Ömrü (saat)"],
-    ["Un", "kg", "40", "50", "10", ""],
-    ["Süt", "litre", "25", "30", "5", "48"],
-    ["Yumurta", "adet", "7", "200", "50", "168"],
-    ["Tereyağı", "kg", "450", "10", "3", "720"],
-    ["Şeker", "kg", "55", "25", "8", ""],
-  ]);
-  ws["!cols"] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws, "Hammaddeler");
+  // ── Sheet 1: Veri ──────────────────────────────────────────────────────────
+  const ws = wb.addWorksheet("Hammaddeler", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
 
-  // Sheet 2: Açıklamalar
-  const info = XLSX.utils.aoa_to_sheet([
+  ws.columns = [
+    { header: "Ad *",              key: "ad",      width: 28 },
+    { header: "Birim *",           key: "birim",   width: 18 },
+    { header: "Birim Fiyat (₺) *", key: "fiyat",   width: 20 },
+    { header: "Mevcut Stok",       key: "stok",    width: 15 },
+    { header: "Min Stok",          key: "minStok", width: 15 },
+    { header: "Raf Ömrü (saat)",   key: "raf",     width: 18 },
+  ];
+
+  // Başlık satırı stili
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9C4A3" } };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.height = 20;
+
+  // Örnek satırlar
+  const examples = [
+    { ad: "Un",       birim: "kg",    fiyat: 40,  stok: 50,  minStok: 10, raf: ""  },
+    { ad: "Süt",      birim: "litre", fiyat: 25,  stok: 30,  minStok: 5,  raf: 48  },
+    { ad: "Yumurta",  birim: "adet",  fiyat: 7,   stok: 200, minStok: 50, raf: 168 },
+    { ad: "Tereyağı", birim: "kg",    fiyat: 450, stok: 10,  minStok: 3,  raf: 720 },
+    { ad: "Şeker",    birim: "kg",    fiyat: 55,  stok: 25,  minStok: 8,  raf: ""  },
+  ];
+  examples.forEach((row) => ws.addRow(row));
+
+  // ── Birim Dropdown (B2:B1000) ──────────────────────────────────────────────
+  for (let rowNum = 2; rowNum <= 1000; rowNum++) {
+    ws.getCell(`B${rowNum}`).dataValidation = {
+      type: "list",
+      allowBlank: false,
+      formulae: [UNITS_FORMULA],
+      showErrorMessage: true,
+      errorStyle: "error",
+      errorTitle: "Geçersiz Birim",
+      error: `Lütfen listeden seçin: ${UNITS.join(", ")}`,
+      showInputMessage: true,
+      promptTitle: "Birim Seçin",
+      prompt: `Geçerli birimler:\n${UNITS.join(", ")}`,
+    };
+  }
+
+  // ── Sheet 2: Birimler Referans ─────────────────────────────────────────────
+  const wsRef = wb.addWorksheet("Birimler (Referans)");
+  wsRef.columns = [
+    { header: "Birim",    key: "birim",    width: 12 },
+    { header: "Açıklama", key: "aciklama", width: 22 },
+  ];
+  wsRef.getRow(1).font = { bold: true };
+  const unitDescs: [string, string][] = [
+    ["kg",    "Kilogram"],
+    ["gr",    "Gram"],
+    ["litre", "Litre"],
+    ["dl",    "Desilitre"],
+    ["cl",    "Santilitre"],
+    ["ml",    "Mililitre"],
+    ["adet",  "Adet (sayı)"],
+  ];
+  unitDescs.forEach(([b, a]) => wsRef.addRow({ birim: b, aciklama: a }));
+
+  // ── Sheet 3: Açıklamalar ───────────────────────────────────────────────────
+  const wsInfo = wb.addWorksheet("Açıklamalar");
+  wsInfo.columns = [{ key: "a", width: 22 }, { key: "b", width: 50 }, { key: "c", width: 25 }];
+
+  const rows: [string, string, string][] = [
     ["Alan", "Açıklama", "Örnek"],
-    ["Ad *", "Hammadde adı (zorunlu)", "Un, Süt, Yumurta"],
-    ["Birim *", "Ölçü birimi (zorunlu)", "kg, litre, adet, gram, ml, g, lt"],
-    ["Birim Fiyat *", "₺ cinsinden birim maliyet (zorunlu)", "40.50"],
-    ["Mevcut Stok", "Şu anki stok (opsiyonel, varsayılan: 0)", "50"],
-    ["Min Stok", "Uyarı için minimum seviye (opsiyonel)", "10"],
-    ["Raf Ömrü (saat)", "Saat cinsinden raf ömrü (opsiyonel)", "48"],
+    ["Ad *",             "Hammadde adı (zorunlu)",                          "Un, Süt, Yumurta"],
+    ["Birim *",          "Dropdown'dan seçin (zorunlu)",                    "kg, litre, adet..."],
+    ["Birim Fiyat *",    "₺ cinsinden birim maliyet (zorunlu)",             "40.50"],
+    ["Mevcut Stok",      "Şu anki stok (opsiyonel, varsayılan: 0)",         "50"],
+    ["Min Stok",         "Uyarı için minimum seviye (opsiyonel)",           "10"],
+    ["Raf Ömrü (saat)",  "Saat cinsinden raf ömrü (opsiyonel)",             "48"],
     ["", "", ""],
     ["NOT:", "* işaretli alanlar zorunludur", ""],
-    ["NOT:", "Desteklenen birimler: kg, g, gram, mg, litre, lt, l, ml, cl, dl, adet, düzine", ""],
-  ]);
-  info["!cols"] = [{ wch: 20 }, { wch: 50 }, { wch: 25 }];
-  XLSX.utils.book_append_sheet(wb, info, "Açıklamalar");
+    ["NOT:", "Birim kolonunda hücreye tıklayın → sağdaki oka basın", ""],
+  ];
+  rows.forEach(([a, b, c], i) => {
+    const row = wsInfo.addRow({ a, b, c });
+    if (i === 0) row.font = { bold: true };
+  });
 
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const buffer = await wb.xlsx.writeBuffer();
 
-  return new NextResponse(buf, {
+  return new NextResponse(Buffer.from(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": 'attachment; filename="hammadde-sablonu.xlsx"',
