@@ -7,7 +7,7 @@ import Link from "next/link";
 
 export default async function DashboardPage() {
   const session = await auth();
-  const user = session?.user as any;
+  const user = session?.user;
 
   const allMaterials = await db.select().from(rawMaterials);
   const lowStock = allMaterials.filter(

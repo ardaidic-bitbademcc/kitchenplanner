@@ -23,7 +23,7 @@ const empty = { name: "", unit: "kg", yieldQty: "1", fireRate: "0.10", shelfLife
 
 export default function BaseProductsPage() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [items, setItems] = useState<BaseProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);

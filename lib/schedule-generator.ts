@@ -9,10 +9,7 @@ import {
   products,
 } from "./schema";
 import { eq } from "drizzle-orm";
-
-function calcBrutQty(netQty: number, fireRate: number): number {
-  return netQty * (1 + fireRate) * 1.05;
-}
+import { calcBrutQty, calcFifoDeadline } from "./calculations";
 
 // Parse a date string like "2026-03-30" as local midnight (avoid UTC shift)
 function parseLocalDate(dateStr: string): Date {
@@ -100,7 +97,7 @@ export async function generateSchedule(planId: string): Promise<void> {
         // FIFO deadline = production date + shelf life hours (use-by date)
         let fifoDeadline: Date | null = null;
         if (bp.shelfLifeHours) {
-          fifoDeadline = new Date(taskDay.getTime() + bp.shelfLifeHours * 60 * 60 * 1000);
+          fifoDeadline = calcFifoDeadline(taskDay, bp.shelfLifeHours);
         }
 
         // Consolidate same base-product + day + stage across multiple products

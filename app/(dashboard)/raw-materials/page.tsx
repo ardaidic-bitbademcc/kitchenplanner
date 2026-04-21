@@ -21,7 +21,7 @@ const restockEmpty = { qty: "", unit: "", notes: "" };
 
 export default function RawMaterialsPage() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [items, setItems] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
 

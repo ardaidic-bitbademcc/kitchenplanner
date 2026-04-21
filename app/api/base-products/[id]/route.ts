@@ -22,7 +22,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   const body = await req.json();
   const [item] = await db
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   await db.delete(baseProducts).where(eq(baseProducts.id, params.id));
   return NextResponse.json({ ok: true });

@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 
 export async function POST(req: NextRequest, { params }: { params: { type: string } }) {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
 
   const formData = await req.formData();

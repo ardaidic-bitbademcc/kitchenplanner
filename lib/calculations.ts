@@ -35,5 +35,5 @@ export function calcPortionCost(
 }
 
 export function calcFifoDeadline(assemblyDate: Date, shelfLifeHours: number): Date {
-  return new Date(assemblyDate.getTime() - shelfLifeHours * 60 * 60 * 1000);
+  return new Date(assemblyDate.getTime() + shelfLifeHours * 60 * 60 * 1000);
 }

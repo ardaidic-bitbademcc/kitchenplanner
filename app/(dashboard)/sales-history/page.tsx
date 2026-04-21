@@ -23,7 +23,7 @@ const empty = { productId:"", weekStart:"", soldQty:"", revenue:"", channel:"maÄ
 
 export default function SalesHistoryPage() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

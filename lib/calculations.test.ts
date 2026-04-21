@@ -85,17 +85,17 @@ describe("calcPortionCost", () => {
 });
 
 describe("calcFifoDeadline", () => {
-  test("raf ömrü 24 saat için montaj tarihinden 1 gün önce döner", () => {
+  test("raf ömrü 24 saat için üretim tarihinden 1 gün sonra son kullanma tarihi döner", () => {
     const assemblyDate = new Date("2026-04-10T12:00:00.000Z");
-    // 24 * 60 * 60 * 1000 = 86_400_000 ms geri
-    const expected = new Date("2026-04-09T12:00:00.000Z");
+    // üretim + 24 saat = son kullanma tarihi
+    const expected = new Date("2026-04-11T12:00:00.000Z");
     const result = calcFifoDeadline(assemblyDate, 24);
     assert.deepEqual(result, expected);
   });
 
-  test("raf ömrü 48 saat için montaj tarihinden 2 gün önce döner", () => {
+  test("raf ömrü 48 saat için üretim tarihinden 2 gün sonra son kullanma tarihi döner", () => {
     const assemblyDate = new Date("2026-04-10T00:00:00.000Z");
-    const expected = new Date("2026-04-08T00:00:00.000Z");
+    const expected = new Date("2026-04-12T00:00:00.000Z");
     const result = calcFifoDeadline(assemblyDate, 48);
     assert.deepEqual(result, expected);
   });

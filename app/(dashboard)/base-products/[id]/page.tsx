@@ -14,7 +14,7 @@ interface BaseProduct { id: string; name: string; unit: string; }
 export default function BaseProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [bp, setBp] = useState<any>(null);
   const [rawMats, setRawMats] = useState<RawMaterial[]>([]);
   const [allBPs, setAllBPs] = useState<BaseProduct[]>([]);

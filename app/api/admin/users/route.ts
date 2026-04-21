@@ -14,7 +14,7 @@ const schema = z.object({
 
 export async function GET() {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   const data = await db.select({ id: users.id, email: users.email, name: users.name, role: users.role, createdAt: users.createdAt }).from(users).orderBy(users.name);
   return NextResponse.json(data);
@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   const body = await req.json();
   const parsed = schema.safeParse(body);

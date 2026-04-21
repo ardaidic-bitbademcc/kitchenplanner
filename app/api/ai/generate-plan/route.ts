@@ -7,7 +7,7 @@ import { openai } from "@/lib/openai";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session || (session.user as any).role !== "admin")
+  if (!session || session.user.role !== "admin")
     return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
 
   const body = await req.json();
@@ -132,15 +132,21 @@ ${JSON.stringify(context, null, 2)}
 
 Bu haftanın üretim planını oluştur. Eğer satış geçmişi yoksa son planı veya makul bir başlangıç miktarı kullan.`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature: 0.3,
-    response_format: { type: "json_object" },
-  });
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+  } catch (e: any) {
+    console.error("OpenAI API hatası:", e.message);
+    return NextResponse.json({ error: "AI servisi kullanılamıyor", detail: e.message }, { status: 503 });
+  }
 
   const content = response.choices[0].message.content;
   if (!content) return NextResponse.json({ error: "AI yanıt vermedi" }, { status: 500 });

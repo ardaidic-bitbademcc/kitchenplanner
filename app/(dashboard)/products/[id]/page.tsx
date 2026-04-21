@@ -19,7 +19,7 @@ function CostCard({ label, value, sub, highlight }: { label: string; value: stri
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [product, setProduct] = useState<any>(null);
   const [baseProducts, setBaseProducts] = useState<any[]>([]);
   const [baseReqs, setBaseReqs] = useState<{ baseProductId: string; qtyPerUnit: string }[]>([]);

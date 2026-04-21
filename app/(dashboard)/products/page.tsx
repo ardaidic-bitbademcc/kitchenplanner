@@ -15,7 +15,7 @@ const empty = { name: "", description: "", sellingPrice: "" };
 
 export default function ProductsPage() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);

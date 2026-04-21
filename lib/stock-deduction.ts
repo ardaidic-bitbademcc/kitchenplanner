@@ -102,37 +102,53 @@ export async function deductStockForTask(taskId: string): Promise<void> {
     }
   }
 
-  // Her hammadde için stoktan düş
-  for (const [rawMaterialId, { qty, unit }] of Array.from(grouped.entries())) {
-    // Mevcut stok birimini bul
-    const rmRows = await db
-      .select({ stockQty: rawMaterials.stockQty, unit: rawMaterials.unit })
-      .from(rawMaterials)
-      .where(eq(rawMaterials.id, rawMaterialId))
-      .limit(1);
-    const rm = rmRows[0];
-    if (!rm) continue;
+  // Her hammadde için stoktan düş — transaction içinde atomik olarak yap
+  const warnings: string[] = [];
 
-    // Birim dönüşümü: ingredient unit → stok unit
-    const deductInStockUnit = convertUnit(qty, unit, rm.unit);
+  await db.transaction(async (tx) => {
+    for (const [rawMaterialId, { qty, unit }] of Array.from(grouped.entries())) {
+      // Mevcut stok birimini bul
+      const rmRows = await tx
+        .select({ stockQty: rawMaterials.stockQty, unit: rawMaterials.unit, name: rawMaterials.name })
+        .from(rawMaterials)
+        .where(eq(rawMaterials.id, rawMaterialId))
+        .limit(1);
+      const rm = rmRows[0];
+      if (!rm) continue;
 
-    // Stoku güncelle (negatife düşürme — uyarı için kontrol edilebilir ama şimdilik izin ver)
-    await db
-      .update(rawMaterials)
-      .set({
-        stockQty: sql`${rawMaterials.stockQty} - ${deductInStockUnit.toFixed(4)}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(rawMaterials.id, rawMaterialId));
+      // Birim dönüşümü: ingredient unit → stok unit
+      const deductInStockUnit = convertUnit(qty, unit, rm.unit);
+      const currentStock = parseFloat(rm.stockQty as string);
 
-    // Hareket kaydı
-    await db.insert(stockMovements).values({
-      rawMaterialId,
-      taskId,
-      type: "usage",
-      qtyChange: (-deductInStockUnit).toFixed(4),
-      unit: rm.unit,
-      notes: `Görev: ${task.taskDescription}`,
-    });
+      // Negatif stok uyarısı
+      if (currentStock - deductInStockUnit < 0) {
+        warnings.push(
+          `"${rm.name}" stoğu yetersiz: mevcut ${currentStock.toFixed(3)} ${rm.unit}, gerekli ${deductInStockUnit.toFixed(3)} ${rm.unit}`
+        );
+      }
+
+      // Stoku güncelle
+      await tx
+        .update(rawMaterials)
+        .set({
+          stockQty: sql`${rawMaterials.stockQty} - ${deductInStockUnit.toFixed(4)}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(rawMaterials.id, rawMaterialId));
+
+      // Hareket kaydı
+      await tx.insert(stockMovements).values({
+        rawMaterialId,
+        taskId,
+        type: "usage",
+        qtyChange: (-deductInStockUnit).toFixed(4),
+        unit: rm.unit,
+        notes: `Görev: ${task.taskDescription}`,
+      });
+    }
+  });
+
+  if (warnings.length > 0) {
+    throw new Error(warnings.join("; "));
   }
 }

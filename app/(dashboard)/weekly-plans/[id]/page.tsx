@@ -14,7 +14,7 @@ const statusLabel = { draft: "Taslak", active: "Aktif", completed: "Tamamlandı"
 export default function WeeklyPlanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
   const [plan, setPlan] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [calculations, setCalculations] = useState<any>(null);
